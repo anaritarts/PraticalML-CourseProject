@@ -1,0 +1,186 @@
+---
+title: "Practical ML Course Project"
+author: "Ana Rita Silva"
+date: "2023-01-11"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1. Overview
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here:
+
+# 2. Background
+
+The training data for this project is available:
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv>
+
+The test data is available :
+
+<https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv>
+
+The data for this project come from this source: <http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har>. If you use the document you create for this class for any purpose please cite them as they have been very generous in allowing their data to be used for this kind of assignment.
+
+# 3. Loading Data and Libraries
+
+Loading all the libraries and the data
+
+```{r}
+library(lattice)
+library(ggplot2)
+library(caret)
+library(kernlab)
+library(rattle)
+library(corrplot)
+set.seed(1234)
+```
+
+```{r}
+traincsv <- read.csv("./pml-training.csv")
+testcsv <- read.csv("./pml-testing.csv")
+dim(traincsv)
+```
+
+```{r}
+dim(testcsv)
+```
+
+Training set: 160 attributes and 19 622 observations. Test set: 160 attributes and 20 observations.
+
+# 4.Data Cleaning/Preparation
+
+i.  Remove NA's
+
+```{r}
+traincsv <- traincsv[,colMeans(is.na(traincsv)) < .9] #removing mostly NA columns
+traincsv <- traincsv[,-c(1:7)] #removing metadata which is irrelevant to the outcome
+```
+
+ii. Remove attributes with near 0 variance
+
+```{r}
+nvz <- nearZeroVar(traincsv)
+traincsv <- traincsv[,-nvz]
+dim(traincsv)
+```
+
+iii. Split training set into: validation and training set
+
+```{r}
+inTrain <- createDataPartition(y=traincsv$classe, p=0.7, list=F)
+train <- traincsv[inTrain,]
+valid <- traincsv[-inTrain,]
+```
+
+# 5. MODELING
+
+In this section, we will resort to different models (Decision Trees, Random Forest, Gradient Boosted Trees and SVM), in order to analyse the different results and compare the models.
+
+Use 3 fold cross-validation:
+
+```{r}
+control <- trainControl(method="cv", number=3, verboseIter=F)
+```
+
+## 5.1 Decision Trees
+
+```{r}
+mod_trees <- train(classe~., data=train, method="rpart", trControl = control, tuneLength = 5)
+fancyRpartPlot(mod_trees$finalModel)
+```
+
+```{r}
+#Prediction:
+pred_trees <- predict(mod_trees, valid)
+cmtrees <- confusionMatrix(pred_trees, factor(valid$classe))
+cmtrees
+```
+
+## 5.2 Random Forests
+
+```{r}
+mod_rf <- train(classe~., data=train, method="rf", trControl = control, tuneLength = 5)
+pred_rf <- predict(mod_rf, valid)
+cmrf <- confusionMatrix(pred_rf, factor(valid$classe))
+cmrf
+```
+
+## 5.3 Gradient Boost Trees
+
+```{r}
+mod_gbm <- train(classe~., data=train, method="gbm", trControl = control, tuneLength = 5, verbose = F)
+
+pred_gbm <- predict(mod_gbm, valid)
+cmgbm <- confusionMatrix(pred_gbm, factor(valid$classe))
+cmgbm
+```
+
+## 5.4 Support Vector Machine
+
+```{r}
+mod_svm <- train(classe~., data=train, method="svmLinear", trControl = control, tuneLength = 5, verbose = F)
+
+pred_svm <- predict(mod_svm, valid)
+cmsvm <- confusionMatrix(pred_svm, factor(valid$classe))
+cmsvm
+```
+
+# 6. Model results
+
++----------------------------------------+-----------------+----------------------------+
+| ###### Model                           | ###### Accuracy | ###### Out of Sample Error |
++========================================+=================+============================+
+| ###### Decision Trees                  | ###### 0.537    | ###### 0.463               |
++----------------------------------------+-----------------+----------------------------+
+| ###### Random Forests                  | ###### 0.996    | ###### 0.004               |
++----------------------------------------+-----------------+----------------------------+
+| ###### Gradient Boos Trees             | ###### 0.992    | ###### 0.008               |
++----------------------------------------+-----------------+----------------------------+
+| ###### SVM                             | ###### 0.781    | ###### 0.219               |
++----------------------------------------+-----------------+----------------------------+
+
+: Model Results
+
+The best model is the **Random Forest**, with 0.9957519 accuracy and 0.0042481 out of sample error rate.
+
+We believe this is a sufficient enough model to use for our test sets.
+
+# 7. Predictions on Test Set
+
+```{r}
+pred <- predict(mod_rf, testcsv)
+print(pred)
+```
+
+# APPENDIX
+
+##### Correlation matrix of the train set variables
+
+```{r}
+corrPlot <- cor(train[, -length(names(train))])
+corrplot(corrPlot, method="color")
+```
+
+# 
+
+##### Decision Trees Plot
+
+```{r}
+plot(mod_trees)
+```
+
+##### Random Forest Plot
+
+```{r}
+plot(mod_rf)
+```
+
+##### Gradient Boost Trees
+
+```{r}
+plot(mod_gbm)
+```
